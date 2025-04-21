@@ -36,6 +36,7 @@ export default {
 
 					// Update the database with the contract address
 					if (data.siteId) {
+						// Direct update if we have a site ID
 						const { error } = await supabase
 							.from("sites")
 							.update({ site_contract: contractAddress })
@@ -45,22 +46,55 @@ export default {
 							console.error("Error updating site contract in database:", error);
 							throw error;
 						}
+						console.log(`Updated site ${data.siteId} with contract ${contractAddress}`);
 					} else if (data.domain) {
 						// Store in KV for later use
 						await env.SITE_CONTRACT.put(data.domain, contractAddress);
+
+						// Ensure domain has the correct format for DB lookup
+						const fullDomain = `${data.domain}.orbiter.website`;
+
+						try {
+							const { data: sites, error: lookupError } = await supabase
+								.from("sites")
+								.select("id")
+								.eq("domain", fullDomain);
+
+							if (lookupError) {
+								console.error("Error looking up site by domain:", lookupError);
+							} else if (sites && sites.length > 0) {
+								const siteId = sites[0].id;
+								const { error: updateError } = await supabase
+									.from("sites")
+									.update({ site_contract: contractAddress })
+									.eq("id", siteId);
+
+								if (updateError) {
+									console.error("Error updating site contract in database:", updateError);
+								} else {
+									console.log(`Updated site ${siteId} with contract ${contractAddress}`);
+								}
+							} else {
+								console.log(`No site found with domain: ${fullDomain}`);
+								console.log(`UserId: ${data.userId}, OrgId: ${data.orgId}`);
+							}
+						} catch (error) {
+							console.error("Error during site lookup and update:", error);
+						}
+					} else {
+						console.error("Missing both siteId and domain for contract creation");
 					}
 
-					// If we also have a CID, we need to immediately queue an update operation
+					// If we also have a CID, queue an update operation
 					if (data.cid) {
-						// Queue contract update operation
 						await env.CONTRACT_QUEUE.send({
 							type: 'update_contract',
 							cid: data.cid,
 							contractAddress: contractAddress,
-							siteId: data.siteId,
 							domain: data.domain,
 							userId: data.userId,
-							orgId: data.orgId
+							orgId: data.orgId,
+							siteId: data.siteId
 						});
 					}
 				}
@@ -85,11 +119,7 @@ export default {
 				message.ack();
 			} catch (error) {
 				console.error("Error processing queue message:", error);
-
-				// For now, we'll acknowledge failed messages to avoid infinite loops
-				// In a production environment, you might want to implement retry logic
-				// or dead-letter queues for failed messages
-				message.ack();
+				message.ack(); // Acknowledge to avoid infinite loops
 			}
 		}
 	},
