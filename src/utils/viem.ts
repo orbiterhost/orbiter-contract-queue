@@ -7,7 +7,6 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { orbiterFactory, orbiterContract } from "./contracts";
-import { ENV } from "./types";
 
 type EventLogs = {
 	eventName: string;
@@ -16,15 +15,16 @@ type EventLogs = {
 	};
 };
 
-const publicClient = createPublicClient({
-	chain: base,
-	transport: http(),
-});
 
 export async function createContract(
-	c: ENV,
+	c: Env,
 ): Promise<EventLogs | undefined> {
 	const account = privateKeyToAccount(c.ORBITER_PRIVATE_KEY as "0x");
+
+	const publicClient = createPublicClient({
+		chain: base,
+		transport: http(c.BASE_ALCHEMY_URL),
+	});
 
 	const walletClient = createWalletClient({
 		chain: base,
@@ -60,12 +60,17 @@ export async function createContract(
 }
 
 export async function writeCID(
-	c: ENV,
+	c: Env,
 	cid: string,
 	contractAddress: `0x${string}`,
 ): Promise<string | unknown> {
 	try {
+		console.log("RPC: ", c.BASE_ALCHEMY_URL)
 		const account = privateKeyToAccount(c.ORBITER_PRIVATE_KEY as "0x");
+		const publicClient = createPublicClient({
+			chain: base,
+			transport: http(c.BASE_ALCHEMY_URL),
+		});
 		const walletClient = createWalletClient({
 			chain: base,
 			transport: http(c.BASE_ALCHEMY_URL),
