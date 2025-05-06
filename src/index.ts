@@ -9,6 +9,7 @@ interface ContractMessage {
 	domain?: string;
 	userId?: string;
 	orgId?: string;
+	retryCount?: number;
 }
 
 export default {
@@ -28,7 +29,24 @@ export default {
 					const contractRes = await createContract(env);
 
 					if (!contractRes) {
-						throw Error("Problem creating contract");
+						console.error("Problem creating contract, requeueing...");
+						console.log("Error: ", contractRes)
+
+			      // Track retry attempts to prevent infinite loops
+			      const retryCount = (data.retryCount || 0) + 1;
+
+			      if (retryCount <= 3) { // Limit to 3 retry attempts
+			        await env.CONTRACT_QUEUE.send({
+			          ...data,
+			          retryCount: retryCount
+			        });
+			        console.log(`Requeued contract creation, attempt ${retryCount}/3`);
+			      } else {
+			        console.error("Max retry attempts exceeded for contract creation");
+			      }
+
+			      message.ack(); // Acknowledge current message since we've requeued it
+			      continue; // Skip to next message in batch
 					}
 
 					const contractAddress = contractRes.args.cloneAddress as `0x${string}`;

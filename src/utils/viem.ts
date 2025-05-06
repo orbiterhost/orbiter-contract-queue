@@ -68,7 +68,7 @@ export async function writeCID(
 		const account = privateKeyToAccount(c.ORBITER_PRIVATE_KEY as "0x");
 		const walletClient = createWalletClient({
 			chain: base,
-			transport: http(),
+			transport: http(c.BASE_ALCHEMY_URL),
 			account: account,
 		});
 		const { request } = await publicClient.simulateContract({
